@@ -1,7 +1,3 @@
-#![recursion_limit = "1024"]
-#![allow(clippy::large_enum_variant)]
-#![allow(clippy::eval_order_dependence)]
-
 #[macro_use]
 extern crate diesel;
 #[macro_use]
