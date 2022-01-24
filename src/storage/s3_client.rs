@@ -45,10 +45,7 @@ pub(crate) async fn get_object_body(
             let mut buffer = bytes::BytesMut::with_capacity(*buffer_capacity);
             loop {
                 let result = body.read_buf(&mut buffer).await.unwrap();
-                match result {
-                    0 => break,
-                    _ => {}
-                }
+                if result == 0 { break }
                 hasher.update(&buffer[..result]);
                 // We never read uninitialized data from the buffer, so this is OK. `read_buf`
                 // will set the bytes and we only pass read bytes in the slice to the hasher.
@@ -87,10 +84,6 @@ pub(crate) async fn delete_object_by_path(
         client.delete_object(req).await
     }).await;
 
-
     // debug!("DeleteObjectRequest: {:#?}", res);
-    match res {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    res.is_ok()
 }

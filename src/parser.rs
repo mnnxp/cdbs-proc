@@ -16,7 +16,7 @@ pub(crate) async fn play(
     client: S3Client,
     bucket: String,
     pool: PgPool,
-) -> () {
+) {
     loop {
         let game_meta = metadata_parser(&opt, &client, &bucket, &pool);
         let game_destoy = destroy_parser(&opt, &client, &bucket, &pool);
@@ -48,7 +48,7 @@ async fn destroy_parser(
     bucket: &str,
     pool: &PgPool,
 ) -> ServiceResult<bool> {
-    let conn = db_connection(&pool).expect("failed get conn");
+    let conn = db_connection(pool).expect("failed get conn");
 
     loop {
         // get part files for delete
@@ -61,7 +61,7 @@ async fn destroy_parser(
             },
             false => {
                 for slim_file in destroy_list {
-                    let res = delete_file(client, bucket, &slim_file, &pool).await;
+                    let res = delete_file(client, bucket, &slim_file, pool).await;
                     debug!("delete file {:?} ({:?}): {:?}", slim_file.filename, slim_file.uuid, res);
                 }
             },
@@ -77,7 +77,7 @@ async fn metadata_parser(
     bucket: &str,
     pool: &PgPool,
 ) -> ServiceResult<bool> {
-    let conn = db_connection(&pool).expect("failed get conn");
+    let conn = db_connection(pool).expect("failed get conn");
 
     loop {
         // get part files for delete
@@ -95,10 +95,10 @@ async fn metadata_parser(
                         bucket,
                         &opt.buffer_capacity,
                         &slim_file,
-                        &pool
+                        pool
                     ).await;
                     debug!("parsing file {:?} ({:?}): {:?}", slim_file.filename, slim_file.uuid, res);
-                    if let Err(_) = res {
+                    if res.is_err() {
                         set_skip_file(&slim_file.uuid, &conn)?;
                     }
                 }
