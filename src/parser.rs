@@ -4,6 +4,7 @@ use crate::models::file::model::SlimFile;
 use crate::models::file::service::delete::delete_file;
 use crate::models::file::service::update::update_metadata;
 use crate::models::file::util::set_skip_file;
+use crate::models::user::delete::clear_removed_users;
 use crate::cli_args::Opt;
 use tokio::time::{sleep, Duration};
 use rusoto_s3::S3Client;
@@ -17,6 +18,8 @@ pub(crate) async fn play(
     bucket: String,
     pool: PgPool,
 ) {
+    let conn = db_connection(&pool).expect("failed get conn");
+
     loop {
         let game_meta = metadata_parser(&opt, &client, &bucket, &pool);
         let game_destoy = destroy_parser(&opt, &client, &bucket, &pool);
@@ -25,6 +28,10 @@ pub(crate) async fn play(
             (Ok(x), Ok(y)) => {
                 debug!("game_meta {}", x);
                 debug!("game_destoy {}", y);
+
+                // start clear removed users of database
+                clear_removed_users(&conn);
+
                 // start sleeping set time if not found files for action
                 if x || y {
                     sleep(Duration::from_millis(opt.sleeping_time)).await;
