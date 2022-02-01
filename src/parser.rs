@@ -18,7 +18,7 @@ pub(crate) async fn play(
     bucket: String,
     pool: PgPool,
 ) {
-    let conn = db_connection(&pool).expect("failed get conn");
+    // let conn = db_connection(&pool).expect("failed get conn");
 
     loop {
         let game_meta = metadata_parser(&opt, &client, &bucket, &pool);
@@ -29,8 +29,7 @@ pub(crate) async fn play(
                 debug!("game_meta {}", x);
                 debug!("game_destoy {}", y);
 
-                // start clear removed users of database
-                clear_removed_users(&conn);
+                clear_users(&pool);
 
                 // start sleeping set time if not found files for action
                 if x || y {
@@ -45,6 +44,13 @@ pub(crate) async fn play(
             },
         }
     }
+}
+
+// Start clear removed users of database
+fn clear_users(pool: &PgPool) {
+    let conn = db_connection(&pool).expect("failed get conn");
+
+    clear_removed_users(&conn);
 }
 
 /// Get and delete files with flag is_delete
