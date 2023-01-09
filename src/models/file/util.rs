@@ -47,7 +47,12 @@ fn find_id_ext(
 ) -> ServiceResult<i32> {
     use crate::schema::extension_ref::dsl as extension_ref;
     // debug!("Filename_str {:?}", filename);
-    let ext_str = Regex::new(r"\w*$").unwrap().find(filename).unwrap().as_str();
+    let ext_str =
+        Regex::new(r"\.\w+$")
+            .unwrap()
+            .find(filename)
+            .map(|m| m.as_str())
+            .unwrap_or_default();
     // debug!("Ext_str {:?}", ext_str);
     // find id extension or set not found id = 1
     let get_ext = extension_ref::extension_ref
