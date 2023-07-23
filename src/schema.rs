@@ -248,6 +248,7 @@ table! {
     file_ref (uuid) {
         uuid -> Uuid,
         parent_file_uuid -> Uuid,
+        revision -> Int4,
         hash -> Bytea,
         user_uuid -> Uuid,
         filename -> Varchar,
@@ -255,6 +256,8 @@ table! {
         id_ext -> Int4,
         filesize -> Int8,
         path_file -> Varchar,
+        is_checked -> Bool,
+        is_hided -> Bool,
         is_delete -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
