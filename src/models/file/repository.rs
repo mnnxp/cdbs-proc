@@ -4,8 +4,9 @@ use crate::schema::file_ref::dsl as file_ref;
 use diesel::prelude::*;
 
 impl SlimFile {
-    /// Get row with empty has
-    pub(crate) fn get_without_hash(
+    /// Get row for parsing hash
+    /// filter: no hash, not empty, not checked, not hidden, not deleted.
+    pub(crate) fn get_files_for_check(
         limit: &i64,
         conn: &PgConnection,
     ) -> ServiceResult<Vec<SlimFile>> {
@@ -13,6 +14,8 @@ impl SlimFile {
 
         file_ref::file_ref
             .filter(file_ref::hash.eq(&empty_hash)
+            .and(file_ref::is_checked.eq(false))
+            .and(file_ref::is_hided.eq(false))
             .and(file_ref::is_delete.eq(false))
             .and(file_ref::filesize.gt(0)))
             .select((

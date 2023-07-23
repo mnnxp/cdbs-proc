@@ -94,7 +94,7 @@ async fn metadata_parser(
 
     loop {
         // get part files for delete
-        let parsing_list = SlimFile::get_without_hash(&opt.limit_part, &conn)?;
+        let parsing_list = SlimFile::get_files_for_check(&opt.limit_part, &conn)?;
 
         match parsing_list.is_empty() {
             true => {

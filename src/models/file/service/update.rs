@@ -29,6 +29,7 @@ pub(crate) async fn update_metadata(
         .set((
             file_ref::hash.eq(&file_metadata.hash),
             file_ref::id_ext.eq(&file_metadata.id_ext),
+            file_ref::is_checked.eq(true),
             file_ref::updated_at.eq(chrono::Local::now().naive_local())
         ))
         .execute(&conn)
