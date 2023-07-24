@@ -38,13 +38,14 @@ impl SlimFile {
         conn: &PgConnection,
     ) -> ServiceResult<Vec<SlimFile>> {
         file_ref::file_ref
-            .filter(file_ref::is_delete.eq(true))
             .select((
                 file_ref::uuid,
                 file_ref::filename,
                 // file_ref::filesize,
                 file_ref::path_file,
             ))
+            .filter(file_ref::is_checked.eq(false))
+            .filter(file_ref::is_delete.eq(true))
             .limit(*limit)
             .load::<SlimFile>(conn)
             .map_err(|err| {
