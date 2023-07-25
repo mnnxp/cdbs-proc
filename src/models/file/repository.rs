@@ -15,7 +15,7 @@ impl SlimFile {
         file_ref::file_ref
             .filter(file_ref::hash.eq(&empty_hash)
             .and(file_ref::is_checked.eq(false))
-            .and(file_ref::is_hided.eq(false))
+            .and(file_ref::is_hidden.eq(false))
             .and(file_ref::is_delete.eq(false))
             .and(file_ref::filesize.gt(0)))
             .select((

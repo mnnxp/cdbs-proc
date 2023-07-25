@@ -257,7 +257,7 @@ table! {
         filesize -> Int8,
         path_file -> Varchar,
         is_checked -> Bool,
-        is_hided -> Bool,
+        is_hidden -> Bool,
         is_delete -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,

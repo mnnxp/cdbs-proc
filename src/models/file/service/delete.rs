@@ -34,7 +34,7 @@ fn set_delete_file_by_uuid(
     diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(file_uuid)))
         .set((
             file_ref::is_checked.eq(true),
-            file_ref::is_hided.eq(true),
+            file_ref::is_hidden.eq(true),
             file_ref::is_delete.eq(true),
         ))
         .returning(file_ref::path_file)
