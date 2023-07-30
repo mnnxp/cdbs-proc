@@ -4,7 +4,7 @@ use crate::models::file::model::SlimFile;
 use crate::models::file::service::delete::delete_file;
 use crate::models::file::service::update::update_metadata;
 use crate::models::file::util::set_skip_file;
-use crate::models::user::delete::clear_removed_users;
+// use crate::models::user::delete::clear_removed_users;
 use crate::cli_args::Opt;
 use tokio::time::{sleep, Duration};
 use rusoto_s3::S3Client;
@@ -29,8 +29,6 @@ pub(crate) async fn play(
                 debug!("game_meta {}", x);
                 debug!("game_destoy {}", y);
 
-                clear_users(&pool);
-
                 // start sleeping set time if not found files for action
                 if x || y {
                     sleep(Duration::from_millis(opt.sleeping_time)).await;
@@ -44,13 +42,6 @@ pub(crate) async fn play(
             },
         }
     }
-}
-
-// Start clear removed users of database
-fn clear_users(pool: &PgPool) {
-    let conn = db_connection(&pool).expect("failed get conn");
-
-    clear_removed_users(&conn);
 }
 
 /// Get and delete files with flag is_delete
