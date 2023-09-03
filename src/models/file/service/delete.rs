@@ -19,7 +19,7 @@ pub(crate) async fn delete_file(
     let file_removed = delete_object_by_path(client, bucket, &slim_file.path_file).await;
     if file_removed {
         // preparing child files before removed a parent file
-        let _amount = make_child_independent(&slim_file.uuid, &conn)?;
+        // let _amount = make_child_independent(&slim_file.uuid, &conn)?;
         // set flags in database about the file is removed
         let _path_file = set_delete_file_by_uuid(&slim_file.uuid, &conn)?;
     }

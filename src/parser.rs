@@ -18,8 +18,6 @@ pub(crate) async fn play(
     bucket: String,
     pool: PgPool,
 ) {
-    // let conn = db_connection(&pool).expect("failed get conn");
-
     loop {
         let game_meta = metadata_parser(&opt, &client, &bucket, &pool);
         let game_destoy = destroy_parser(&opt, &client, &bucket, &pool);
