@@ -44,33 +44,3 @@ fn set_delete_file_by_uuid(
             ServiceError::InternalServerError
         })
 }
-
-/// Replaces parent reference with self
-fn make_child_independent(
-    file_uuid: &Uuid,
-    conn: &PgConnection,
-) -> ServiceResult<usize> {
-    let child_files = file_ref::file_ref
-        .select(file_ref::uuid)
-        .filter(file_ref::parent_file_uuid.eq(file_uuid))
-        .load::<Uuid>(conn)
-        .map_err(|err| {
-            debug!("Failded select child files record in database: {:?}", err);
-            ServiceError::InternalServerError
-        })?;
-    // debug!("Found dependents in {:?} row(s)", child_files.len());
-    // debug!("Found dependents in {:#?} row(s)", child_files);
-
-    let mut counter_child = 0;
-    for cf in child_files {
-        counter_child += diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(cf)))
-            .set(file_ref::parent_file_uuid.eq(cf))
-            .execute(conn)
-            .map_err(|err| {
-                debug!("Failded update child file record in database: {:?}", err);
-                ServiceError::InternalServerError
-            })?;
-    }
-    debug!("Removed dependents in {:?} row(s)", counter_child);
-    Ok(counter_child)
-}
