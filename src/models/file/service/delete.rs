@@ -15,26 +15,32 @@ pub(crate) async fn delete_file(
 ) -> ServiceResult<bool> {
     let conn = pool.get().unwrap();
 
-    let res = delete_object_by_path(client, bucket, &slim_file.path_file).await;
-
-    // delete row about file in database
-    let _path_file = delete_file_by_uuid(&slim_file.uuid, &conn)?;
-
     // delete file in storage
-    Ok(res)
+    let file_removed = delete_object_by_path(client, bucket, &slim_file.path_file).await;
+    if file_removed {
+        // preparing child files before removed a parent file
+        // let _amount = make_child_independent(&slim_file.uuid, &conn)?;
+        // set flags in database about the file is removed
+        let _path_file = set_delete_file_by_uuid(&slim_file.uuid, &conn)?;
+    }
+    Ok(file_removed)
 }
 
-/// Delete row in database
-fn delete_file_by_uuid(
+/// Set row as delete in database
+fn set_delete_file_by_uuid(
     file_uuid: &Uuid,
     conn: &PgConnection,
 ) -> ServiceResult<String> {
-    diesel::delete(file_ref::file_ref)
-        .filter(file_ref::uuid.eq(file_uuid))
+    diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(file_uuid)))
+        .set((
+            file_ref::is_checked.eq(true),
+            file_ref::is_hidden.eq(true),
+            file_ref::is_delete.eq(true),
+        ))
         .returning(file_ref::path_file)
         .get_result::<String>(conn)
         .map_err(|err| {
-            debug!("Failded delete file record in database : {:?}", err);
+            debug!("Failed set flags for a removed file record in database: {:?}", err);
             ServiceError::InternalServerError
         })
 }

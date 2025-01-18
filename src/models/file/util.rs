@@ -83,7 +83,7 @@ fn find_id_ext(
     }
 }
 
-/// Set empty hash for no parsing file in future
+/// Sets empty hash for no parsing file in future
 pub(crate) fn set_skip_file(
     file_uuid: &Uuid,
     conn: &PgConnection,
@@ -95,7 +95,7 @@ pub(crate) fn set_skip_file(
         .returning(file_ref::is_delete)
         .get_result(conn)
         .map_err(|err| {
-            debug!("Failed get file: {:?}", err);
+            debug!("Failed set zero hash file: {:?}", err);
             ServiceError::InternalServerError
         })
 }

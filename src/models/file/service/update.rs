@@ -25,15 +25,35 @@ pub(crate) async fn update_metadata(
         pool
     ).await?;
 
-    diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(&slim_file.uuid)))
+    let (parent_file_uuid, revision) = diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(&slim_file.uuid)))
         .set((
             file_ref::hash.eq(&file_metadata.hash),
             file_ref::id_ext.eq(&file_metadata.id_ext),
-            file_ref::updated_at.eq(chrono::Local::now().naive_local())
+            file_ref::is_checked.eq(true),
         ))
-        .execute(&conn)
+        .returning((
+            file_ref::parent_file_uuid,
+            file_ref::revision,
+        ))
+        .get_result::<(uuid::Uuid, i32)>(&conn)
         .map_err(|err| {
             debug!("Failed set metadata: {:?}", err);
             ServiceError::BadRequest("Failed set metadata".to_string())
-        })
+        })?;
+
+    // hide the old version of a file if the file has a link to another file
+    if parent_file_uuid != slim_file.uuid && revision > 1 {
+        return diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(&parent_file_uuid)))
+            .set((
+                file_ref::is_hidden.eq(true),
+                file_ref::updated_at.eq(chrono::Local::now().naive_local())
+            ))
+            .execute(&conn)
+            .map_err(|err| {
+                debug!("Failed set metadata: {:?}", err);
+                ServiceError::BadRequest("Failed set metadata".to_string())
+            })
+    }
+
+    Ok(1)
 }
