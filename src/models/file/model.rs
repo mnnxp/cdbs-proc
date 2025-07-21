@@ -7,13 +7,12 @@ use uuid::Uuid;
 pub(crate) struct SlimFile {
     pub(crate) uuid: Uuid,
     pub(crate) filename: String,
-    // pub(crate) filesize: i64,
     pub(crate) path_file: String,
 }
 
 #[derive(Debug)]
 pub(crate) struct FileMetadata {
-    pub(crate) hash: Vec<u8>,
+    pub(crate) blake3_hash: Vec<u8>,
+    pub(crate) sha256_hash: Vec<u8>,
     pub(crate) id_ext: i32,
-    // pub(crate) filesize: i32,
 }

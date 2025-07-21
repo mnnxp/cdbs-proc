@@ -20,7 +20,7 @@ pub(crate) async fn get_metadata(
 ) -> ServiceResult<FileMetadata> {
     let conn = pool.get().unwrap();
 
-    let hash = get_object_body(
+    let (blake3_hash, sha256_hash) = get_object_body(
         client,
         bucket,
         &slim_file.path_file,
@@ -34,8 +34,9 @@ pub(crate) async fn get_metadata(
     // let size = body.len() as u64;
 
     Ok(FileMetadata {
+        blake3_hash,
+        sha256_hash,
         id_ext,
-        hash
     })
 }
 
