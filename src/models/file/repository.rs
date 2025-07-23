@@ -19,7 +19,7 @@ impl SlimFile {
                 // file_ref::filesize,
                 file_ref::path_file,
             ))
-            .filter(file_ref::hash.eq(&empty_hash)
+            .filter(file_ref::sha256_hash.eq(&empty_hash)
                 .and(file_ref::is_checked.eq(false))
                 .and(file_ref::is_hidden.eq(false))
                 .and(file_ref::is_delete.eq(false))
