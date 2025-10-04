@@ -2,6 +2,7 @@ use crate::errors::{ServiceResult, ServiceError};
 use rusoto_core::request::HttpClient;
 use rusoto_s3::{GetObjectRequest, S3, S3Client};
 use rusoto_signature::credential::StaticProvider;
+use sha2::{Sha256, Digest};
 use tokio::io::AsyncReadExt;
 
 // const DERIVE_KEY: &str = "CADNICE";
@@ -23,7 +24,7 @@ pub(crate) async fn get_object_body(
     bucket: &str,
     path_file: &str,
     buffer_capacity: &usize
-) -> ServiceResult<Vec<u8>> {
+) -> ServiceResult<(Vec<u8>, Vec<u8>)> {
     let client = client.clone();
     let get_req = GetObjectRequest {
         bucket: bucket.to_owned(),
@@ -39,22 +40,26 @@ pub(crate) async fn get_object_body(
         Ok(result) => {
             let stream = result.body.unwrap();
             // calculated blake3 for hash
-            // let mut hasher = blake3::Hasher::new_derive_key(DERIVE_KEY);
-            let mut hasher = blake3::Hasher::new();
+            // let mut blake3_hasher = blake3::Hasher::new_derive_key(DERIVE_KEY);
+            let mut blake3_hasher = blake3::Hasher::new();
+            // create a Sha256 object
+            let mut sha256_hasher = Sha256::new();
             let mut body = stream.into_async_read();
             let mut buffer = bytes::BytesMut::with_capacity(*buffer_capacity);
             loop {
                 let result = body.read_buf(&mut buffer).await.unwrap();
                 if result == 0 { break }
-                hasher.update(&buffer[..result]);
+                blake3_hasher.update(&buffer[..result]);
+                sha256_hasher.update(&buffer[..result]);
                 // We never read uninitialized data from the buffer, so this is OK. `read_buf`
                 // will set the bytes and we only pass read bytes in the slice to the hasher.
                 unsafe {
                     buffer.set_len(0);
                 };
             }
-            let final_hash = hasher.finalize().as_bytes().to_vec();
-            Ok(final_hash)
+            let final_hash = blake3_hasher.finalize().as_bytes().to_vec();
+            let final_hash_sha256 = sha256_hasher.finalize().to_vec();
+            Ok((final_hash, final_hash_sha256))
         },
         Err(err) => {
             debug!("Err get file: {:#?}", err);

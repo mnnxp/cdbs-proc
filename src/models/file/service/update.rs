@@ -27,7 +27,8 @@ pub(crate) async fn update_metadata(
 
     let (parent_file_uuid, revision) = diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(&slim_file.uuid)))
         .set((
-            file_ref::hash.eq(&file_metadata.hash),
+            file_ref::hash.eq(&file_metadata.blake3_hash),
+            file_ref::sha256_hash.eq(&file_metadata.sha256_hash),
             file_ref::id_ext.eq(&file_metadata.id_ext),
             file_ref::is_checked.eq(true),
         ))
