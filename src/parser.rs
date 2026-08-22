@@ -1,11 +1,11 @@
+use crate::cli_args::Opt;
 use crate::database::{db_connection, PgPool};
 use crate::errors::ServiceResult;
+use crate::models::api_key::deactivate_expired_keys;
 use crate::models::file::model::SlimFile;
 use crate::models::file::service::delete::delete_file;
 use crate::models::file::service::update::update_metadata;
 use crate::models::file::util::set_skip_file;
-// use crate::models::user::delete::clear_removed_users;
-use crate::cli_args::Opt;
 use futures::join;
 use rusoto_s3::S3Client;
 use tokio::time::{sleep, Duration};
@@ -16,22 +16,26 @@ pub(crate) async fn play(opt: Opt, client: S3Client, bucket: String, pool: PgPoo
     loop {
         let game_meta = metadata_parser(&opt, &client, &bucket, &pool);
         let game_destoy = destroy_parser(&opt, &client, &bucket, &pool);
+        // does not affect sleeping and runs in background
+        let game_expire = expire_keys_parser(&pool);
 
-        match join!(game_meta, game_destoy) {
-            (Ok(x), Ok(y)) => {
-                debug!("game_meta {}", x);
-                debug!("game_destoy {}", y);
+        match join!(game_meta, game_destoy, game_expire) {
+            (Ok(m), Ok(d), Ok(e)) => {
+                debug!("game_meta {}", m);
+                debug!("game_destoy {}", d);
+                debug!("game_expire {}", e);
 
                 // start sleeping set time if not found files for action
-                if x || y {
+                if m || d {
+                    debug!("{} ms have elapsed", opt.sleeping_time);
                     sleep(Duration::from_millis(opt.sleeping_time)).await;
-                    println!("{} ms have elapsed", opt.sleeping_time);
                 }
             }
-            (meta, destoy) => {
+            (meta, destoy, expire) => {
                 debug!("Have error:");
                 debug!("game_meta {:?}, ", meta);
                 debug!("game_destoy {:?}", destoy);
+                debug!("game_expire {:?}", expire);
             }
         }
     }
@@ -104,4 +108,14 @@ async fn metadata_parser(
             }
         }
     }
+}
+
+/// Deactivates API keys that have passed their expiration date
+async fn expire_keys_parser(pool: &PgPool) -> ServiceResult<usize> {
+    let mut conn = db_connection(pool).expect("failed get conn");
+    let updated = deactivate_expired_keys(&mut conn)?;
+    if updated > 0 {
+        debug!("Deactivated {} expired API keys", updated);
+    }
+    Ok(updated)
 }
