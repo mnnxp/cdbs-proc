@@ -1,7 +1,8 @@
 use crate::cli_args::Opt;
+use crate::errors::{ServiceError, ServiceResult};
 use crate::schema::*;
+use chrono::{NaiveDateTime, Utc};
 use structopt::StructOpt;
-use chrono::NaiveDateTime;
 use uuid::Uuid;
 
 /// Saving an active link to the file for uses the cache browser
@@ -24,21 +25,21 @@ pub(crate) struct StorageAccess {
 
 impl StorageAccess {
     /// Gets data to access S3 from environment for generate presign-urls
-    pub(crate) fn from_env() -> StorageAccess {
+    pub(crate) fn from_env() -> ServiceResult<StorageAccess> {
         let opt = Opt::from_args();
 
         // checking expiration date for key
-        if opt.s3_access_expiration_at < chrono::Local::now().naive_local() {
-            panic!("The data to access S3 is not valid.");
+        if opt.s3_access_expiration_at < Utc::now().naive_utc() {
+            return Err(ServiceError::BadRequest("S3 key expired".into()));
         }
 
-        StorageAccess {
+        Ok(StorageAccess {
             application_key_id: opt.s3_application_key_id,
             application_key: opt.s3_application_key,
             bucket: opt.s3_bucket,
             region: opt.s3_region,
             endpoint: opt.s3_endpoint,
-        }
+        })
     }
 }
 
@@ -52,7 +53,7 @@ impl From<&StorageAccess> for super::s3::Aws {
             application_key_id,
             application_key,
             &data.region,
-            &data.endpoint
+            &data.endpoint,
         )
     }
 }

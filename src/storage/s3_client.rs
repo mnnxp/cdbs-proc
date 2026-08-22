@@ -1,8 +1,8 @@
-use crate::errors::{ServiceResult, ServiceError};
+use crate::errors::{ServiceError, ServiceResult};
 use rusoto_core::request::HttpClient;
-use rusoto_s3::{GetObjectRequest, S3, S3Client};
+use rusoto_s3::{GetObjectRequest, S3Client, S3};
 use rusoto_signature::credential::StaticProvider;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use tokio::io::AsyncReadExt;
 
 // const DERIVE_KEY: &str = "CADNICE";
@@ -23,7 +23,7 @@ pub(crate) async fn get_object_body(
     client: &S3Client,
     bucket: &str,
     path_file: &str,
-    buffer_capacity: &usize
+    buffer_capacity: &usize,
 ) -> ServiceResult<(Vec<u8>, Vec<u8>)> {
     let client = client.clone();
     let get_req = GetObjectRequest {
@@ -32,13 +32,19 @@ pub(crate) async fn get_object_body(
         ..Default::default()
     };
 
-    let res = tokio::spawn(async move {
-        client.get_object(get_req).await
-    }).await.unwrap();
+    let res = tokio::spawn(async move { client.get_object(get_req).await })
+        .await
+        .map_err(|err| {
+            debug!("Spawn task failed: {}", err);
+            ServiceError::InternalServerError
+        })?;
 
     match res {
         Ok(result) => {
-            let stream = result.body.unwrap();
+            let stream = result.body.ok_or_else(|| {
+                debug!("Empty body for file: {}", path_file);
+                ServiceError::InternalServerError
+            })?;
             // calculated blake3 for hash
             // let mut blake3_hasher = blake3::Hasher::new_derive_key(DERIVE_KEY);
             let mut blake3_hasher = blake3::Hasher::new();
@@ -47,8 +53,13 @@ pub(crate) async fn get_object_body(
             let mut body = stream.into_async_read();
             let mut buffer = bytes::BytesMut::with_capacity(*buffer_capacity);
             loop {
-                let result = body.read_buf(&mut buffer).await.unwrap();
-                if result == 0 { break }
+                let result = body.read_buf(&mut buffer).await.map_err(|e| {
+                    debug!("Failed to read file body: {}", e);
+                    ServiceError::InternalServerError
+                })?;
+                if result == 0 {
+                    break;
+                }
                 blake3_hasher.update(&buffer[..result]);
                 sha256_hasher.update(&buffer[..result]);
                 // We never read uninitialized data from the buffer, so this is OK. `read_buf`
@@ -60,11 +71,11 @@ pub(crate) async fn get_object_body(
             let final_hash = blake3_hasher.finalize().as_bytes().to_vec();
             let final_hash_sha256 = sha256_hasher.finalize().to_vec();
             Ok((final_hash, final_hash_sha256))
-        },
+        }
         Err(err) => {
             debug!("Err get file: {:#?}", err);
             Err(ServiceError::InternalServerError)
-        },
+        }
     }
 }
 
@@ -85,9 +96,7 @@ pub(crate) async fn delete_object_by_path(
     debug!("DeleteObjectRequest: {:#?}", req);
 
     let client = client.clone();
-    let res = tokio::spawn(async move {
-        client.delete_object(req).await
-    }).await;
+    let res = tokio::spawn(async move { client.delete_object(req).await }).await;
 
     // debug!("DeleteObjectRequest: {:#?}", res);
     res.is_ok()

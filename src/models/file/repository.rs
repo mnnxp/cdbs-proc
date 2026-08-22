@@ -19,11 +19,14 @@ impl SlimFile {
                 // file_ref::filesize,
                 file_ref::path_file,
             ))
-            .filter(file_ref::sha256_hash.eq(&empty_hash)
-                .and(file_ref::is_checked.eq(false))
-                .and(file_ref::is_hidden.eq(false))
-                .and(file_ref::is_delete.eq(false))
-                .and(file_ref::filesize.gt(0)))
+            .filter(
+                file_ref::sha256_hash
+                    .eq(&empty_hash)
+                    .and(file_ref::is_checked.eq(false))
+                    .and(file_ref::is_hidden.eq(false))
+                    .and(file_ref::is_delete.eq(false))
+                    .and(file_ref::filesize.gt(0)),
+            )
             .limit(*limit)
             .load::<SlimFile>(conn)
             .map_err(|err| {
@@ -33,10 +36,7 @@ impl SlimFile {
     }
 
     /// Get row with flag is_delete is true for delete with limit
-    pub(crate) fn get_for_delete(
-        limit: &i64,
-        conn: &PgConnection,
-    ) -> ServiceResult<Vec<SlimFile>> {
+    pub(crate) fn get_for_delete(limit: &i64, conn: &PgConnection) -> ServiceResult<Vec<SlimFile>> {
         file_ref::file_ref
             .select((
                 file_ref::uuid,
@@ -44,8 +44,11 @@ impl SlimFile {
                 // file_ref::filesize,
                 file_ref::path_file,
             ))
-            .filter(file_ref::is_checked.eq(false)
-                .and(file_ref::is_delete.eq(true)))
+            .filter(
+                file_ref::is_checked
+                    .eq(false)
+                    .and(file_ref::is_delete.eq(true)),
+            )
             .limit(*limit)
             .load::<SlimFile>(conn)
             .map_err(|err| {

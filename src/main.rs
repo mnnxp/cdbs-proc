@@ -9,9 +9,9 @@ mod cli_args;
 mod database;
 mod errors;
 mod models;
-mod storage;
 mod parser;
 mod schema;
+mod storage;
 
 #[tokio::main]
 async fn main() {
@@ -28,7 +28,8 @@ async fn main() {
     };
 
     // getting storage access data
-    let storage_access = storage::model::StorageAccess::from_env();
+    let storage_access =
+        storage::model::StorageAccess::from_env().expect("Failed to load S3 storage configuration");
     let aws_access = storage::s3::Aws::from(&storage_access);
     let client = rusoto_s3::S3Client::from(&aws_access);
 
@@ -40,14 +41,12 @@ async fn main() {
             opt.clone(),
             client.clone(),
             storage_access.bucket.clone(),
-            pool.clone()
-        ).await
+            pool.clone(),
+        )
+        .await
     });
 
     eprintln!("Parsing started...");
 
-    // We can wait for the blocking task like this:
-    // If the blocking task panics, the unwrap below will propagate the
-    // panic.
-    blocking_task.await.unwrap();
+    blocking_task.await.expect("Parser task panicked");
 }

@@ -1,23 +1,18 @@
+use crate::database::{db_connection, PgPool};
 use crate::errors::ServiceResult;
-use crate::database::{PgPool, db_connection};
 use crate::models::file::model::SlimFile;
 use crate::models::file::service::delete::delete_file;
 use crate::models::file::service::update::update_metadata;
 use crate::models::file::util::set_skip_file;
 // use crate::models::user::delete::clear_removed_users;
 use crate::cli_args::Opt;
-use tokio::time::{sleep, Duration};
-use rusoto_s3::S3Client;
 use futures::join;
+use rusoto_s3::S3Client;
+use tokio::time::{sleep, Duration};
 
 /// Parsing and delete files
 /// if not found files for action - return true
-pub(crate) async fn play(
-    opt: Opt,
-    client: S3Client,
-    bucket: String,
-    pool: PgPool,
-) {
+pub(crate) async fn play(opt: Opt, client: S3Client, bucket: String, pool: PgPool) {
     loop {
         let game_meta = metadata_parser(&opt, &client, &bucket, &pool);
         let game_destoy = destroy_parser(&opt, &client, &bucket, &pool);
@@ -32,12 +27,12 @@ pub(crate) async fn play(
                     sleep(Duration::from_millis(opt.sleeping_time)).await;
                     println!("{} ms have elapsed", opt.sleeping_time);
                 }
-            },
+            }
             (meta, destoy) => {
                 debug!("Have error:");
                 debug!("game_meta {:?}, ", meta);
                 debug!("game_destoy {:?}", destoy);
-            },
+            }
         }
     }
 }
@@ -60,13 +55,16 @@ async fn destroy_parser(
             true => {
                 debug!("not found files for delete");
                 return Ok(true);
-            },
+            }
             false => {
                 for slim_file in destroy_list {
                     let res = delete_file(client, bucket, &slim_file, pool).await;
-                    debug!("delete file {:?} ({:?}): {:?}", slim_file.filename, slim_file.uuid, res);
+                    debug!(
+                        "delete file {:?} ({:?}): {:?}",
+                        slim_file.filename, slim_file.uuid, res
+                    );
                 }
-            },
+            }
         }
     }
 }
@@ -89,22 +87,21 @@ async fn metadata_parser(
             true => {
                 debug!("not found files for parsing");
                 return Ok(true);
-            },
+            }
             false => {
                 for slim_file in parsing_list {
-                    let res = update_metadata(
-                        client,
-                        bucket,
-                        &opt.buffer_capacity,
-                        &slim_file,
-                        pool
-                    ).await;
-                    debug!("parsing file {:?} ({:?}): {:?}", slim_file.filename, slim_file.uuid, res);
+                    let res =
+                        update_metadata(client, bucket, &opt.buffer_capacity, &slim_file, pool)
+                            .await;
+                    debug!(
+                        "parsing file {:?} ({:?}): {:?}",
+                        slim_file.filename, slim_file.uuid, res
+                    );
                     if res.is_err() {
                         set_skip_file(&slim_file.uuid, &conn)?;
                     }
                 }
-            },
+            }
         }
     }
 }

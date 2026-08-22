@@ -6,7 +6,7 @@ use diesel::prelude::*;
 
 pub(crate) fn create_extension(
     new_extension_data: &InsertableExtension,
-    conn: &PgConnection
+    conn: &PgConnection,
 ) -> ServiceResult<i32> {
     diesel::insert_into(extension_ref::extension_ref)
         .values(new_extension_data)
