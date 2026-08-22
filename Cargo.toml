@@ -23,16 +23,12 @@ r2d2 = "0.8.10"
 dotenv = "0.15.0"
 structopt = "0.3.26"
 
-anyhow = "1.0.98"
 thiserror = "2.0.12"
 
 regex = "1.11.1"
 
-ring = "0.17.14"
 sha2 = "0.10.9"
-hmac = "0.12.1"
 base64 = "0.22.1"
-hex = "0.4.3"
 
 digest = "0.10.7"
 blake3 = "1.8.2"
@@ -46,6 +42,5 @@ rusoto_core = "0.48.0"
 rusoto_s3 = "0.48.0"
 rusoto_signature = "0.48.0"
 
-lazy_static = "1.5.0"
 log = "0.4.27"
 env_logger ="0.9.0"
