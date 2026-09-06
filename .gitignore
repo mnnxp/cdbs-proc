@@ -1,2 +1,15 @@
+keys/
+*.pem
+*.key
+.env
 /target
-.idea
+**/*.rs.bk
+.idea/
+node_modules/
+python_modules/
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json

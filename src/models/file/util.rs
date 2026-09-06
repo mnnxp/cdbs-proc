@@ -1,14 +1,14 @@
-use regex::Regex;
-use rusoto_s3::S3Client;
-use diesel::prelude::*;
-use uuid::Uuid;
-use crate::errors::{ServiceResult, ServiceError};
+use super::model::{FileMetadata, SlimFile};
 use crate::database::PgPool;
+use crate::errors::{ServiceError, ServiceResult};
 use crate::models::extension::model::InsertableExtension;
 use crate::models::extension::service::register::create_extension;
-use crate::storage::s3_client::get_object_body;
-use super::model::{FileMetadata, SlimFile};
 use crate::schema::file_ref::dsl as file_ref;
+use crate::storage::s3_client::get_object_body;
+use diesel::prelude::*;
+use regex::Regex;
+use rusoto_s3::S3Client;
+use uuid::Uuid;
 
 /// Calculate hash and define the file extension
 pub(crate) async fn get_metadata(
@@ -18,14 +18,10 @@ pub(crate) async fn get_metadata(
     slim_file: &SlimFile,
     pool: &PgPool,
 ) -> ServiceResult<FileMetadata> {
-    let conn = pool.get().unwrap();
+    let conn = pool.get().map_err(|_| ServiceError::UnableToConnectToDb)?;
 
-    let (blake3_hash, sha256_hash) = get_object_body(
-        client,
-        bucket,
-        &slim_file.path_file,
-        buffer_capacity
-    ).await?;
+    let (blake3_hash, sha256_hash) =
+        get_object_body(client, bucket, &slim_file.path_file, buffer_capacity).await?;
 
     // get id for extension
     let id_ext = find_id_ext(&slim_file.filename, &conn)?;
@@ -42,19 +38,18 @@ pub(crate) async fn get_metadata(
 
 /// Get extension id on table for file extension
 /// if not found, add new
-fn find_id_ext(
-    filename: &str,
-    conn: &PgConnection
-) -> ServiceResult<i32> {
+fn find_id_ext(filename: &str, conn: &PgConnection) -> ServiceResult<i32> {
     use crate::schema::extension_ref::dsl as extension_ref;
     // debug!("Filename_str {:?}", filename);
-    let ext_str =
-        Regex::new(r"\.\w+$")
-            .unwrap()
-            .find(filename)
-            .map(|m| m.as_str())
-            .unwrap_or_default();
+    let ext_str = Regex::new(r"\.\w+$")
+        .unwrap()
+        .find(filename)
+        .map(|m| m.as_str())
+        .unwrap_or_default();
     // debug!("Ext_str {:?}", ext_str);
+    if ext_str.is_empty() {
+        return Ok(1);
+    }
     // find id extension or set not found id = 1
     let get_ext = extension_ref::extension_ref
         .filter(extension_ref::extension.eq(ext_str))
@@ -72,9 +67,9 @@ fn find_id_ext(
         None => {
             // chech valid
             if ext_str.len() < 10 {
-                let new_extension_data = InsertableExtension{
+                let new_extension_data = InsertableExtension {
                     extension: ext_str.to_string(),
-                    program_id: 1 // unknown
+                    program_id: 1, // unknown
                 };
                 create_extension(&new_extension_data, conn)
             } else {
@@ -85,10 +80,7 @@ fn find_id_ext(
 }
 
 /// Sets empty hash for no parsing file in future
-pub(crate) fn set_skip_file(
-    file_uuid: &Uuid,
-    conn: &PgConnection,
-) -> ServiceResult<bool> {
+pub(crate) fn set_skip_file(file_uuid: &Uuid, conn: &PgConnection) -> ServiceResult<bool> {
     let zero_hash: Vec<u8> = vec![0; 64];
 
     diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(file_uuid)))

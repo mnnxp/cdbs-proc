@@ -1,8 +1,8 @@
-use crate::errors::{ServiceError, ServiceResult};
 use crate::database::PgPool;
+use crate::errors::{ServiceError, ServiceResult};
 use crate::models::file::model::SlimFile;
-use crate::storage::s3_client::delete_object_by_path;
 use crate::schema::file_ref::dsl as file_ref;
+use crate::storage::s3_client::delete_object_by_path;
 use diesel::prelude::*;
 use uuid::Uuid;
 
@@ -13,7 +13,7 @@ pub(crate) async fn delete_file(
     slim_file: &SlimFile,
     pool: &PgPool,
 ) -> ServiceResult<bool> {
-    let conn = pool.get().unwrap();
+    let conn = pool.get().map_err(|_| ServiceError::UnableToConnectToDb)?;
 
     // delete file in storage
     let file_removed = delete_object_by_path(client, bucket, &slim_file.path_file).await;
@@ -27,10 +27,7 @@ pub(crate) async fn delete_file(
 }
 
 /// Set row as delete in database
-fn set_delete_file_by_uuid(
-    file_uuid: &Uuid,
-    conn: &PgConnection,
-) -> ServiceResult<String> {
+fn set_delete_file_by_uuid(file_uuid: &Uuid, conn: &PgConnection) -> ServiceResult<String> {
     diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(file_uuid)))
         .set((
             file_ref::is_checked.eq(true),
@@ -40,7 +37,10 @@ fn set_delete_file_by_uuid(
         .returning(file_ref::path_file)
         .get_result::<String>(conn)
         .map_err(|err| {
-            debug!("Failed set flags for a removed file record in database: {:?}", err);
+            debug!(
+                "Failed set flags for a removed file record in database: {:?}",
+                err
+            );
             ServiceError::InternalServerError
         })
 }

@@ -1,9 +1,9 @@
-use rusoto_signature::{Region, credential::AwsCredentials};
+use rusoto_signature::{credential::AwsCredentials, Region};
 
 #[derive(Clone)]
 pub(crate) struct Aws {
     credentials: AwsCredentials,
-    region: Region
+    region: Region,
 }
 
 impl Aws {
@@ -14,12 +14,7 @@ impl Aws {
         region: &str,
         endpoint: &str,
     ) -> Aws {
-        let credentials = AwsCredentials::new(
-            access_key_id,
-            secret_access_key,
-            None,
-            None
-        );
+        let credentials = AwsCredentials::new(access_key_id, secret_access_key, None, None);
 
         // debug!("Credentials: {:#?}", credentials);
 
@@ -30,7 +25,10 @@ impl Aws {
 
         // debug!("Region: {:#?}", region);
 
-        Aws{credentials, region}
+        Aws {
+            credentials,
+            region,
+        }
     }
 
     /// Return cloned a AwsCredentials (used for create S3Client)
