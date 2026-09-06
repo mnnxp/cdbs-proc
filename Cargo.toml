@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["mnnxp <mananaxep@gmail.com>"]
 resolver = "1"
 rust-version = "1.70.0"
+license = "AGPL-3.0-only"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
