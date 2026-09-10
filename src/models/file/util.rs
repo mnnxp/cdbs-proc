@@ -81,7 +81,10 @@ pub(crate) fn set_skip_file(file_uuid: &Uuid, conn: &PgConnection) -> ServiceRes
     let zero_hash: Vec<u8> = vec![0; 64];
 
     diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(file_uuid)))
-        .set(file_ref::hash.eq(zero_hash))
+        .set((
+            file_ref::hash.eq(zero_hash.clone()),
+            file_ref::sha256_hash.eq(zero_hash),
+        ))
         .returning(file_ref::is_delete)
         .get_result(conn)
         .map_err(|err| {
