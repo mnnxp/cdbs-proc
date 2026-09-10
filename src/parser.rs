@@ -16,14 +16,11 @@ pub(crate) async fn play(opt: Opt, client: S3Client, bucket: String, pool: PgPoo
     loop {
         let game_meta = metadata_parser(&opt, &client, &bucket, &pool);
         let game_destoy = destroy_parser(&opt, &client, &bucket, &pool);
-        // does not affect sleeping and runs in background
-        let game_expire = expire_keys_parser(&pool);
 
-        match join!(game_meta, game_destoy, game_expire) {
-            (Ok(m), Ok(d), Ok(e)) => {
+        match join!(game_meta, game_destoy) {
+            (Ok(m), Ok(d)) => {
                 debug!("game_meta {}", m);
                 debug!("game_destoy {}", d);
-                debug!("game_expire {}", e);
 
                 // start sleeping set time if not found files for action
                 if m || d {
@@ -31,12 +28,15 @@ pub(crate) async fn play(opt: Opt, client: S3Client, bucket: String, pool: PgPoo
                     sleep(Duration::from_millis(opt.sleeping_time)).await;
                 }
             }
-            (meta, destoy, expire) => {
+            (meta, destoy) => {
                 debug!("Have error:");
                 debug!("game_meta {:?}, ", meta);
                 debug!("game_destoy {:?}", destoy);
-                debug!("game_expire {:?}", expire);
             }
+        }
+        // does not affect sleeping
+        if let Err(e) = expire_keys_parser(&pool) {
+            debug!("game_expire error: {:?}", e);
         }
     }
 }
@@ -49,9 +49,8 @@ async fn destroy_parser(
     bucket: &str,
     pool: &PgPool,
 ) -> ServiceResult<bool> {
-    let conn = db_connection(pool).expect("failed get conn");
-
     loop {
+        let conn = db_connection(pool)?;
         // get part files for delete
         let destroy_list = SlimFile::get_for_delete(&opt.limit_part, &conn)?;
 
@@ -62,7 +61,7 @@ async fn destroy_parser(
             }
             false => {
                 for slim_file in destroy_list {
-                    let res = delete_file(client, bucket, &slim_file, pool).await;
+                    let res = delete_file(client, bucket, &slim_file, &conn).await;
                     debug!(
                         "delete file {:?} ({:?}): {:?}",
                         slim_file.filename, slim_file.uuid, res
@@ -81,9 +80,8 @@ async fn metadata_parser(
     bucket: &str,
     pool: &PgPool,
 ) -> ServiceResult<bool> {
-    let conn = db_connection(pool).expect("failed get conn");
-
     loop {
+        let conn = db_connection(pool)?;
         // get part files for delete
         let parsing_list = SlimFile::get_files_for_check(&opt.limit_part, &conn)?;
 
@@ -95,7 +93,7 @@ async fn metadata_parser(
             false => {
                 for slim_file in parsing_list {
                     let res =
-                        update_metadata(client, bucket, &opt.buffer_capacity, &slim_file, pool)
+                        update_metadata(client, bucket, &opt.buffer_capacity, &slim_file, &conn)
                             .await;
                     debug!(
                         "parsing file {:?} ({:?}): {:?}",
@@ -110,9 +108,9 @@ async fn metadata_parser(
     }
 }
 
-/// Deactivates API keys that have passed their expiration date
-async fn expire_keys_parser(pool: &PgPool) -> ServiceResult<usize> {
-    let mut conn = db_connection(pool).expect("failed get conn");
+/// Deactivates expired API keys
+fn expire_keys_parser(pool: &PgPool) -> ServiceResult<usize> {
+    let mut conn = db_connection(pool)?;
     let updated = deactivate_expired_keys(&mut conn)?;
     if updated > 0 {
         debug!("Deactivated {} expired API keys", updated);

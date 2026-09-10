@@ -3,6 +3,7 @@ use crate::schema::user_api_key_ref::dsl::*;
 use chrono::Utc;
 use diesel::prelude::*;
 
+/// Deactivates API keys that have passed their expiration date
 pub(crate) fn deactivate_expired_keys(conn: &mut PgConnection) -> ServiceResult<usize> {
     let now = Utc::now();
 
