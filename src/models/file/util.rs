@@ -1,5 +1,4 @@
 use super::model::{FileMetadata, SlimFile};
-use crate::database::PgPool;
 use crate::errors::{ServiceError, ServiceResult};
 use crate::models::extension::model::InsertableExtension;
 use crate::models::extension::service::register::create_extension;
@@ -16,15 +15,13 @@ pub(crate) async fn get_metadata(
     bucket: &str,
     buffer_capacity: &usize,
     slim_file: &SlimFile,
-    pool: &PgPool,
+    conn: &PgConnection,
 ) -> ServiceResult<FileMetadata> {
-    let conn = pool.get().map_err(|_| ServiceError::UnableToConnectToDb)?;
-
     let (blake3_hash, sha256_hash) =
         get_object_body(client, bucket, &slim_file.path_file, buffer_capacity).await?;
 
     // get id for extension
-    let id_ext = find_id_ext(&slim_file.filename, &conn)?;
+    let id_ext = find_id_ext(&slim_file.filename, conn)?;
 
     // get metadata for filesize
     // let size = body.len() as u64;

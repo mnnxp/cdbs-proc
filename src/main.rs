@@ -36,17 +36,7 @@ async fn main() {
     // Database
     let pool = database::pool::establish_connection(opt.clone());
 
-    let blocking_task = tokio::spawn(async move {
-        parser::play(
-            opt.clone(),
-            client.clone(),
-            storage_access.bucket.clone(),
-            pool.clone(),
-        )
-        .await
-    });
-
     eprintln!("Parsing started...");
 
-    blocking_task.await.expect("Parser task panicked");
+    parser::play(opt, client, storage_access.bucket, pool).await;
 }
