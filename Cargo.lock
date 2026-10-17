@@ -202,7 +202,6 @@ dependencies = [
  "futures",
  "log",
  "r2d2",
- "regex",
  "reqwest",
  "rusoto_core",
  "rusoto_s3",

@@ -26,8 +26,6 @@ structopt = "0.3.26"
 
 thiserror = "2.0.12"
 
-regex = "1.11.1"
-
 sha2 = "0.10.9"
 base64 = "0.22.1"
 
