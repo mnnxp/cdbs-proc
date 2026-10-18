@@ -1,6 +1,7 @@
 use crate::errors::{ServiceError, ServiceResult};
 use crate::models::file::{model::SlimFile, util::get_metadata};
 use crate::schema::file_ref::dsl as file_ref;
+use crate::storage::s3_client::update_s3_metadata;
 use chrono::Utc;
 use diesel::prelude::*;
 
@@ -14,11 +15,21 @@ pub(crate) async fn update_metadata(
 ) -> ServiceResult<usize> {
     let file_metadata = get_metadata(client, bucket, buffer_capacity, slim_file, conn).await?;
 
+    update_s3_metadata(
+        client,
+        bucket,
+        &slim_file.path_file,
+        &slim_file.content_type,
+        &file_metadata.content_type,
+    )
+    .await?;
+
     let (parent_file_uuid, revision) =
         diesel::update(file_ref::file_ref.filter(file_ref::uuid.eq(&slim_file.uuid)))
             .set((
                 file_ref::hash.eq(&file_metadata.blake3_hash),
                 file_ref::sha256_hash.eq(&file_metadata.sha256_hash),
+                file_ref::content_type.eq(&file_metadata.content_type),
                 file_ref::id_ext.eq(&file_metadata.id_ext),
                 file_ref::is_checked.eq(true),
             ))

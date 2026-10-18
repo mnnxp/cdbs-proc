@@ -22,18 +22,19 @@ pub(crate) async fn get_metadata(
     slim_file: &SlimFile,
     conn: &PgConnection,
 ) -> ServiceResult<FileMetadata> {
-    let (blake3_hash, sha256_hash) =
+    let (blake3_hash, sha256_hash, header_bytes) =
         get_object_body(client, bucket, &slim_file.path_file, buffer_capacity).await?;
 
     // get id for extension
     let id_ext = find_id_ext(&slim_file.filename, conn)?;
 
-    // get metadata for filesize
-    // let size = body.len() as u64;
+    // detect MIME type from magic bytes or file extension
+    let content_type = detect_mime_type(&slim_file.filename, &header_bytes);
 
     Ok(FileMetadata {
         blake3_hash,
         sha256_hash,
+        content_type,
         id_ext,
     })
 }
@@ -97,4 +98,27 @@ pub(crate) fn set_skip_file(file_uuid: &Uuid, conn: &PgConnection) -> ServiceRes
             debug!("Failed set zero hash file: {:?}", err);
             ServiceError::InternalServerError
         })
+}
+
+pub(crate) fn detect_mime_type(filename: &str, header_bytes: &[u8]) -> String {
+    let mime_type = infer::get(header_bytes)
+        .map(|kind| kind.mime_type().to_string())
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+
+    if mime_type != "application/octet-stream" {
+        return mime_type;
+    }
+
+    let ext = std::path::Path::new(filename)
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match ext.as_str() {
+        "step" | "stp" => "application/step".to_string(),
+        "iges" | "igs" => "application/iges".to_string(),
+        "stl" => "model/stl".to_string(),
+        _ => "application/octet-stream".to_string(),
+    }
 }

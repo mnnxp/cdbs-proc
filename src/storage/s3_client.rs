@@ -1,8 +1,9 @@
 use crate::errors::{ServiceError, ServiceResult};
 use rusoto_core::request::HttpClient;
-use rusoto_s3::{GetObjectRequest, S3Client, S3};
+use rusoto_s3::{CopyObjectRequest, GetObjectRequest, S3Client, S3};
 use rusoto_signature::credential::StaticProvider;
 use sha2::{Digest, Sha256};
+use std::cmp;
 use tokio::io::AsyncReadExt;
 
 // const DERIVE_KEY: &str = "CADNICE";
@@ -24,7 +25,7 @@ pub(crate) async fn get_object_body(
     bucket: &str,
     path_file: &str,
     buffer_capacity: &usize,
-) -> ServiceResult<(Vec<u8>, Vec<u8>)> {
+) -> ServiceResult<(Vec<u8>, Vec<u8>, Vec<u8>)> {
     let client = client.clone();
     let get_req = GetObjectRequest {
         bucket: bucket.to_owned(),
@@ -52,6 +53,10 @@ pub(crate) async fn get_object_body(
             let mut sha256_hasher = Sha256::new();
             let mut body = stream.into_async_read();
             let mut buffer = bytes::BytesMut::with_capacity(*buffer_capacity);
+
+            let mut header_bytes = Vec::new();
+            let mut is_first_chunk = true;
+
             loop {
                 let result = body.read_buf(&mut buffer).await.map_err(|e| {
                     debug!("Failed to read file body: {}", e);
@@ -60,17 +65,19 @@ pub(crate) async fn get_object_body(
                 if result == 0 {
                     break;
                 }
+                if is_first_chunk {
+                    let take_len = cmp::min(result, 64);
+                    header_bytes = buffer[..take_len].to_vec();
+                    is_first_chunk = false;
+                }
                 blake3_hasher.update(&buffer[..result]);
                 sha256_hasher.update(&buffer[..result]);
-                // We never read uninitialized data from the buffer, so this is OK. `read_buf`
-                // will set the bytes and we only pass read bytes in the slice to the hasher.
-                unsafe {
-                    buffer.set_len(0);
-                };
+
+                buffer.clear();
             }
             let final_hash = blake3_hasher.finalize().as_bytes().to_vec();
             let final_hash_sha256 = sha256_hasher.finalize().to_vec();
-            Ok((final_hash, final_hash_sha256))
+            Ok((final_hash, final_hash_sha256, header_bytes))
         }
         Err(err) => {
             debug!("Err get file: {:#?}", err);
@@ -100,4 +107,36 @@ pub(crate) async fn delete_object_by_path(
 
     // debug!("DeleteObjectRequest: {:#?}", res);
     res.is_ok()
+}
+
+/// Updates Content-Type via self-copy with REPLACE
+pub(crate) async fn update_s3_metadata(
+    client: &S3Client,
+    bucket: &str,
+    path_file: &str,
+    current_type: &str,
+    detected_type: &str,
+) -> ServiceResult<()> {
+    if detected_type != current_type && detected_type != "application/octet-stream" {
+        let source_path = format!("{}/{}", bucket, path_file);
+
+        let copy_req = CopyObjectRequest {
+            bucket: bucket.to_string(),
+            key: path_file.to_string(),
+            copy_source: source_path,
+            metadata_directive: Some("REPLACE".to_string()),
+            content_type: Some(detected_type.to_string()),
+            ..Default::default()
+        };
+
+        client.copy_object(copy_req).await.map_err(|err| {
+            debug!(
+                "Failed to update S3 content_type for {}: {:?}",
+                path_file, err
+            );
+            ServiceError::InternalServerError
+        })?;
+    }
+
+    Ok(())
 }
