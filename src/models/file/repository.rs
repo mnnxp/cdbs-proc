@@ -16,8 +16,8 @@ impl SlimFile {
             .select((
                 file_ref::uuid,
                 file_ref::filename,
-                // file_ref::filesize,
                 file_ref::path_file,
+                file_ref::content_type,
             ))
             .filter(
                 file_ref::sha256_hash
@@ -41,8 +41,8 @@ impl SlimFile {
             .select((
                 file_ref::uuid,
                 file_ref::filename,
-                // file_ref::filesize,
                 file_ref::path_file,
+                file_ref::content_type,
             ))
             .filter(
                 file_ref::is_checked

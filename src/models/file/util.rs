@@ -5,9 +5,14 @@ use crate::models::extension::service::register::create_extension;
 use crate::schema::file_ref::dsl as file_ref;
 use crate::storage::s3_client::get_object_body;
 use diesel::prelude::*;
-use regex::Regex;
 use rusoto_s3::S3Client;
+use std::path::Path;
 use uuid::Uuid;
+
+/// Row `unknown` in `extension_ref` and `program_ref`
+const UNKNOWN_ID: i32 = 1;
+/// Guard against garbage "extensions" (real ones are <= 10 chars)
+const MAX_EXT_LEN: usize = 20;
 
 /// Calculate hash and define the file extension
 pub(crate) async fn get_metadata(
@@ -17,18 +22,19 @@ pub(crate) async fn get_metadata(
     slim_file: &SlimFile,
     conn: &PgConnection,
 ) -> ServiceResult<FileMetadata> {
-    let (blake3_hash, sha256_hash) =
+    let (blake3_hash, sha256_hash, header_bytes) =
         get_object_body(client, bucket, &slim_file.path_file, buffer_capacity).await?;
 
     // get id for extension
     let id_ext = find_id_ext(&slim_file.filename, conn)?;
 
-    // get metadata for filesize
-    // let size = body.len() as u64;
+    // detect MIME type from magic bytes or file extension
+    let content_type = detect_mime_type(&slim_file.filename, &header_bytes);
 
     Ok(FileMetadata {
         blake3_hash,
         sha256_hash,
+        content_type,
         id_ext,
     })
 }
@@ -38,35 +44,36 @@ pub(crate) async fn get_metadata(
 fn find_id_ext(filename: &str, conn: &PgConnection) -> ServiceResult<i32> {
     use crate::schema::extension_ref::dsl as extension_ref;
     // debug!("Filename_str {:?}", filename);
-    let ext_str = Regex::new(r"\.\w+$")
-        .unwrap()
-        .find(filename)
-        .map(|m| m.as_str())
+    let ext_str = Path::new(filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
         .unwrap_or_default();
     // debug!("Ext_str {:?}", ext_str);
     if ext_str.is_empty() {
-        return Ok(1);
+        return Ok(UNKNOWN_ID);
     }
-    // find id extension or set not found id = 1
+    // find extension id, register missing extensions as generic (unknown program)
     let get_ext = extension_ref::extension_ref
-        .filter(extension_ref::extension.eq(ext_str))
+        .filter(extension_ref::extension.eq(&ext_str))
         .select(extension_ref::id)
-        .limit(1)
-        .load::<i32>(conn)
+        .order(extension_ref::id.asc())
+        .first::<i32>(conn)
+        .optional()
         .map_err(|err| {
             debug!("Failed get extension_ref: {:?}", err);
             ServiceError::InternalServerError
         })?;
 
-    match get_ext.first() {
-        Some(x) => Ok(*x),
+    match get_ext {
+        Some(id) => Ok(id),
         // not found ext, add new
         None => {
             // chech valid
-            if ext_str.len() < 10 {
+            if ext_str.len() < MAX_EXT_LEN {
                 let new_extension_data = InsertableExtension {
-                    extension: ext_str.to_string(),
-                    program_id: 1, // unknown
+                    extension: ext_str,
+                    program_id: UNKNOWN_ID,
                 };
                 create_extension(&new_extension_data, conn)
             } else {
@@ -91,4 +98,27 @@ pub(crate) fn set_skip_file(file_uuid: &Uuid, conn: &PgConnection) -> ServiceRes
             debug!("Failed set zero hash file: {:?}", err);
             ServiceError::InternalServerError
         })
+}
+
+pub(crate) fn detect_mime_type(filename: &str, header_bytes: &[u8]) -> String {
+    let mime_type = infer::get(header_bytes)
+        .map(|kind| kind.mime_type().to_string())
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+
+    if mime_type != "application/octet-stream" {
+        return mime_type;
+    }
+
+    let ext = std::path::Path::new(filename)
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match ext.as_str() {
+        "step" | "stp" => "application/step".to_string(),
+        "iges" | "igs" => "application/iges".to_string(),
+        "stl" => "model/stl".to_string(),
+        _ => "application/octet-stream".to_string(),
+    }
 }
